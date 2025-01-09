@@ -1,0 +1,589 @@
+---
+title: "Results cleaned"
+author: "CLEMOT Bastien"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Results for D. minor male courtship behaviour ~ female mating state
+
+### Packages and data importation:
+
+```{r}
+# Packages:
+library(tidyverse)
+library(Hmisc)
+library(car)
+library(lme4)
+library(performance)
+library(AICcmodavg)
+library(gridExtra)
+library(plotrix)
+
+
+# Datasets:
+subset1 <- read.table("subset1_Bastien_original_weight.csv",sep=",",header=T)
+subset2 <- read.table("subset2_Bastien_original_weight.csv",sep=",",header=T)
+data <- rbind(subset1,subset2)
+```
+
+
+### Total courtship duration ~ Female Mating state (1)
+
+```{r}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=total.courtship.duration, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Total courtship duration (s)") +
+  ggtitle("Total courtship duration depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+### Number of courtship segments ~ Female Mating state (1)
+
+```{r}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=number.of.courtships, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Number of courtship segments") +
+  ggtitle("Number of courtship attempts depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+### Mean duration of courtship segments ~ Female Mating state (1)
+
+```{r}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=mean.courtship.length, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Mean length of courtship segments (s)") +
+  ggtitle("Mean length of courtship segments depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+
+### Male getting killed ~ Female Mating State (4)
+
+```{r}
+# Fuse data for pre and post copulatory kill
+data$Male.killed <- data$pre.copulatory.kill | data$post.copulatory.kill
+# Graphical representation
+ggplot(data, aes(fill=Male.killed,x=femalematedbefore)) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  geom_bar() +
+  theme_minimal() +
+  xlab("Female mating state")
+```
+
+### Standardise data
+
+```{r}
+# Standardise data:
+data$std.number.of.courtships <- scale(data$number.of.courtships,center=TRUE,scale=TRUE)
+data$std.total.courtship.duration <- scale(data$total.courtship.duration,center=TRUE,scale=TRUE)
+data$std.mean.courtship.length <- scale(data$mean.courtship.length,center=TRUE,scale=TRUE)
+```
+
+
+### Number of attacks ~ Female Mating State * Male courtship (4)
+
+```{r Complete model}
+# Complete model
+mod.attk <- glmer(number.of.attacks ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data)
+Anova(mod.attk,type='II')
+summary(mod.attk)
+```
+
+```{r VIF}
+# Calculate VIF
+# Obtain VIF:
+vif(mod.attk)
+# Create a better model:
+mod.attk2 <- glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data)
+# Obtain VIF:
+vif(mod.attk2)
+```
+
+```{r AIC}
+# Find best model based on AIC:
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.total.courtship.duration + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore-std.total.courtship.duration + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ 1 + (1|Female),family = poisson,data=data))
+```
+
+```{r Final model}
+# Keep the best model
+mod.attk3 <- glmer(number.of.attacks ~ femalematedbefore*std.number.of.courtships + (1|Female),family = poisson,data=data)
+Anova(mod.attk3,type='II')
+summary(mod.attk3)
+```
+
+### Mean time of mounting ~ Female Mating State * Male courtship (4) 
+
+```{r Complete model}
+# Creation of model:
+mod.mount <- lmer(mean.mount.length ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),data=data)
+summary(mod.mount)
+Anova(mod.mount,type='II')
+```
+
+```{r VIF}
+# Obtain VIF:
+vif(mod.mount)
+```
+
+```{r AIC}
+# Find the best model based on AIC:
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.total.courtship.duration + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.number.of.courtships + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore*std.total.courtship.duration + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ (1|Female),data=data))
+```
+
+```{r Final model}
+summary(mod.mount)
+Anova(mod.mount,type='II')
+```
+
+
+### Number of attacks ~ Female Mating State & Number of flees ~ Female Mating State & Correlation (3) 
+
+```{r Number of attacks}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=number.of.attacks, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Number of attacks") +
+  ggtitle("Number of attacks from the females depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+```{r Number of flees}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=number.of.flees, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Number of flees") +
+  ggtitle("Number of flees from the males depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+```{r Correlation}
+cor.test(data$number.of.attacks,data$number.of.flees,method = "spearman") 
+cor.test(data$number.of.attacks,data$number.of.courtships,method = "spearman") 
+cor.test(data$number.of.flees,data$number.of.courtships,method = "spearman")
+plot(data$number.of.attacks,data$number.of.courtships)
+```
+
+ 
+
+### Number of courtships/flees/attacks ~ Male condition (5)
+
+```{r Preparation}
+df <- subset1
+colnames(df)[56] <- "Male.last.weight1"
+df.maleratio <- left_join(df[,c("Female","Male.last.weight1")],subset2[,c("number.of.attacks","number.of.courtships","number.of.flees","Female","Male.last.weight")])
+df.maleratio$maleratio <- df.maleratio$Male.last.weight1/df.maleratio$Male.last.weight
+```
+
+```{r Number of courtships}
+mod1 <- lm(number.of.courtships ~ maleratio ,data=df.maleratio)
+summary(mod1)
+Anova(mod1,type='II')
+```
+
+```{r Number of attacks}
+mod2 <- lm(number.of.attacks ~ maleratio ,data=df.maleratio)
+summary(mod2)
+Anova(mod2,type='II')
+```
+
+```{r Number of flees}
+mod3 <- lm(number.of.flees ~ maleratio ,data=df.maleratio)
+summary(mod3)
+Anova(mod3,type='II')
+```
+
+
+
+### Courtship parameters ~ Female agressiveness (2) 
+
+```{r Total courtship duration}
+mod.tot <- lmer(total.courtship.duration ~ femalematedbefore*number.of.attacks + (1|Female),data=data)
+summary(mod.tot)
+Anova(mod.tot,type='II')
+```
+
+```{r Number of courtships}
+mod.nb <- glmer(number.of.courtships ~ femalematedbefore+number.of.attacks + (1|Female),family = poisson,data=data)
+summary(mod.nb)
+Anova(mod.nb,type='II')
+```
+
+### copy
+```{r Number of courtships}
+mod.nbé <- glm(number.of.courtships ~ femalematedbefore*number.of.attacks,family = poisson,data=data)
+summary(mod.nbé)
+Anova(mod.nb,type='II')
+```
+
+```{r Mean courtship duration}
+mod.mean <- lmer(mean.courtship.length ~ femalematedbefore*number.of.attacks + (1|Female),data=data)
+summary(mod.mean)
+Anova(mod.mean,type='II')
+```
+
+
+
+
+
+
+
+### Test of my outcomes models by removing the outlier:
+
+```{r data set without the outlier}
+data2 <- data[-21,]
+subset1bis <- subset1[-6,]
+subset2bis <- subset2[-6,]
+```
+
+```{r Total courtship duration}
+mod.tot2 <- lmer(total.courtship.duration ~ femalematedbefore+number.of.attacks + (1|Female),data=data2)
+summary(mod.tot2)
+Anova(mod.tot2,type='II')
+```
+
+```{r Number of courtships}
+mod.nb2 <- glmer(number.of.courtships ~ femalematedbefore + number.of.attacks + (1|Female),family = poisson,data=data2)
+summary(mod.nb2)
+Anova(mod.nb2,type='II')
+```
+
+
+### Test for courtship timing parameters between the two groups:
+
+```{r}
+# test for latency to attack:
+wilcox.test(subset1$latency.to.attack,subset2$latency.to.attack,paired=TRUE)
+ggplot(data, aes(x=femalematedbefore, y=as.numeric(latency.to.attack), fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Latency to attack (s)") +
+  ggtitle("Latency to attack depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+```{r}
+# test for latency to mount:
+wilcox.test(subset1$latency.to.mount,subset2$latency.to.mount,paired=TRUE)
+mean(subset1$latency.to.mount)
+mean(subset2$latency.to.mount,na.rm=TRUE)
+ggplot(data, aes(x=femalematedbefore, y=as.numeric(latency.to.mount), fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Latency to mount (s)") +
+  ggtitle("Latency to mount depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+```{r}
+# Test for latency to touch:
+wilcox.test(subset1$latency.to.touch,subset2$latency.to.touch,paired=TRUE)
+mean(subset1$latency.to.touch,na.rm=TRUE)
+mean(subset2$latency.to.touch,na.rm=TRUE)
+ggplot(data, aes(x=femalematedbefore, y=as.numeric(latency.to.touch), fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Latency to touch (s)") +
+  ggtitle("Latency to touch depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+```{r}
+# Test for latency to attack:
+wilcox.test(subset1$latency.to.attack,subset2$latency.to.attack,paired=TRUE)
+mean(subset1$latency.to.attack,na.rm=TRUE)
+mean(subset2$latency.to.attack,na.rm=TRUE)
+ggplot(data, aes(x=femalematedbefore, y=as.numeric(latency.to.attack), fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("lightgray","gray30")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Latency to attack (s)") +
+  ggtitle("Latency to attack depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+
+
+### Timing of courtship ~ Female mating status, barplots of mean
+
+```{r}
+# Total coursthip duration
+means <- c(mean(subset1$total.courtship.duration),mean(subset2$total.courtship.duration))
+st.errors <- c(std.error(subset1$total.courtship.duration),std.error(subset2$total.courtship.duration))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+
+# number of courthip attempts
+means <- c(mean(subset1$number.of.courtships),mean(subset2$number.of.courtships))
+st.errors <- c(std.error(subset1$number.of.courtships),std.error(subset2$number.of.courtships))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotB <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotB
+
+# Mean courtship duration
+means <- c(mean(subset1$mean.courtship.length),mean(subset2$mean.courtship.length))
+st.errors <- c(std.error(subset1$mean.courtship.length),std.error(subset2$mean.courtship.length))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotC <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotC
+```
+```{r}
+testA <- subset1[,c("Female","mean.courtship.length")]
+testB <- subset2[,c("Female","mean.courtship.length")]
+colnames(testB) <- c("Female","mean.courtship.length2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$mean.courtship.length,testC$mean.courtship.length2,paired=TRUE)
+```
+```{r}
+testA <- subset1[,c("Female","total.courtship.duration")]
+testB <- subset2[,c("Female","total.courtship.duration")]
+colnames(testB) <- c("Female","total.courtship.duration2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$total.courtship.duration,testC$total.courtship.duration2,paired=TRUE)
+```
+```{r}
+testA <- subset1[,c("Female","number.of.courtships")]
+testB <- subset2[,c("Female","number.of.courtships")]
+colnames(testB) <- c("Female","number.of.courtships2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$number.of.courtships,testC$number.of.courtships2,paired=TRUE)
+```
+
+
+
+### Some other parameters of courthip:
+
+```{r}
+# latency.to.mount
+testA <- subset1[,c("Female","latency.to.mount")]
+testB <- subset2[,c("Female","latency.to.mount")]
+colnames(testB) <- c("Female","latency.to.mount2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$latency.to.mount,testC$latency.to.mount2,paired=TRUE)
+
+means <- c(mean(subset1$latency.to.mount,na.rm=TRUE),mean(subset2$latency.to.mount,na.rm=TRUE))
+st.errors <- c(std.error(subset1$latency.to.mount),std.error(subset2$latency.to.mount))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# latency.to.attack
+testA <- subset1[,c("Female","latency.to.attack")]
+testB <- subset2[,c("Female","latency.to.attack")]
+colnames(testB) <- c("Female","latency.to.attack2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$latency.to.attack,testC$latency.to.attack2,paired=TRUE)
+
+means <- c(mean(subset1$latency.to.attack,na.rm=TRUE),mean(subset2$latency.to.attack,na.rm=TRUE))
+st.errors <- c(std.error(subset1$latency.to.attack),std.error(subset2$latency.to.attack))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# latency.to.touch
+testA <- subset1[,c("Female","latency.to.touch")]
+testB <- subset2[,c("Female","latency.to.touch")]
+colnames(testB) <- c("Female","latency.to.touch2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$latency.to.touch,testC$latency.to.touch2,paired=TRUE)
+
+means <- c(mean(subset1$latency.to.touch,na.rm=TRUE),mean(subset2$latency.to.touch,na.rm=TRUE))
+st.errors <- c(std.error(subset1$latency.to.touch),std.error(subset2$latency.to.touch))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# number.of.attacks
+testA <- subset1[,c("Female","number.of.attacks")]
+testB <- subset2[,c("Female","number.of.attacks")]
+colnames(testB) <- c("Female","number.of.attacks2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$number.of.attacks,testC$number.of.attacks2,paired=TRUE)
+
+means <- c(mean(subset1$number.of.attacks,na.rm=TRUE),mean(subset2$number.of.attacks,na.rm=TRUE))
+st.errors <- c(std.error(subset1$number.of.attacks),std.error(subset2$number.of.attacks))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# latency.to.copulate
+testA <- subset1[,c("Female","latency.to.copulate")]
+testB <- subset2[,c("Female","latency.to.copulate")]
+colnames(testB) <- c("Female","latency.to.copulate2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$latency.to.copulate,testC$latency.to.copulate2,paired=TRUE)
+
+means <- c(mean(subset1$latency.to.copulate,na.rm=TRUE),mean(subset2$latency.to.copulate,na.rm=TRUE))
+st.errors <- c(std.error(subset1$latency.to.copulate),std.error(subset2$latency.to.copulate))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# number.of.courtships
+testA <- subset1[,c("Female","number.of.courtships")]
+testB <- subset2[,c("Female","number.of.courtships")]
+colnames(testB) <- c("Female","number.of.courtships2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$number.of.courtships,testC$number.of.courtships2,paired=TRUE)
+
+means <- c(mean(subset1$number.of.courtships,na.rm=TRUE),mean(subset2$number.of.courtships,na.rm=TRUE))
+st.errors <- c(std.error(subset1$number.of.courtships),std.error(subset2$number.of.courtships))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# total.mount.duration
+testA <- subset1[,c("Female","total.mount.duration")]
+testB <- subset2[,c("Female","total.mount.duration")]
+colnames(testB) <- c("Female","total.mount.duration2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$total.mount.duration,testC$total.mount.duration2,paired=TRUE)
+
+means <- c(mean(subset1$total.mount.duration,na.rm=TRUE),mean(subset2$total.mount.duration,na.rm=TRUE))
+st.errors <- c(std.error(subset1$total.mount.duration),std.error(subset2$total.mount.duration))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# number.of.mounts
+testA <- subset1[,c("Female","number.of.mounts")]
+testB <- subset2[,c("Female","number.of.mounts")]
+colnames(testB) <- c("Female","number.of.mounts2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$number.of.mounts,testC$number.of.mounts2,paired=TRUE)
+
+means <- c(mean(subset1$number.of.mounts,na.rm=TRUE),mean(subset2$number.of.mounts,na.rm=TRUE))
+st.errors <- c(std.error(subset1$number.of.mounts),std.error(subset2$number.of.mounts))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+
+```{r}
+# mean.mount.length
+testA <- subset1[,c("Female","mean.mount.length")]
+testB <- subset2[,c("Female","mean.mount.length")]
+colnames(testB) <- c("Female","mean.mount.length2")
+testC <- left_join(testA,testB)
+wilcox.test(testC$mean.mount.length,testC$mean.mount.length2,paired=TRUE)
+
+means <- c(mean(subset1$mean.mount.length,na.rm=TRUE),mean(subset2$mean.mount.length,na.rm=TRUE))
+st.errors <- c(std.error(subset1$mean.mount.length),std.error(subset2$mean.mount.length))
+df.tot <- data.frame(group = c('unmated','mated'),mean = means, se = st.errors)
+plotA <- ggplot(df.tot) +
+  geom_bar(aes(x=group, y=mean),stat="identity") +
+  scale_x_discrete(limits = c('unmated','mated')) +
+  geom_errorbar( aes(x=group, ymin=mean-se, ymax=mean+se), width=0.4, colour="orange", alpha=0.9, size=1.3)
+plotA
+```
+

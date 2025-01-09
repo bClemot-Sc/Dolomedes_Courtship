@@ -1,0 +1,450 @@
+---
+title: "Dolomedes minor male courtship - Data Analysis"
+author: "CLEMOT Bastien"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Packages:
+library(tidyverse)
+library(Hmisc)
+library(car)
+library(lme4)
+library(performance)
+library(AICcmodavg)
+
+
+# Datasets:
+subset1 <- read.table("subset1_Bastien_original_weight.csv",sep=",",header=T)
+subset2 <- read.table("subset2_Bastien_original_weight.csv",sep=",",header=T)
+data <- rbind(subset1,subset2)
+```
+
+# Is male courtship changing depending on female mating state?
+
+Differences between the two groups (virgin;mated) were assessed with three indicators of male courtship: total courtship duration, number of courtship segments, mean courtship segment length.
+
+As all data were paired and, as a counting variable was used, it was decided to only use non-parametric test for paired data.
+Wilcoxon paired test were performed to assess differences between means.
+Differences between variance were also assessed by using a jackknife test.
+
+### Jackknife function (Rothstein et William, 1981):
+
+```{r}
+# Used dataset should have 3 columns, first with female ID, second with variable for the first mating trial (virgin) and third with the variable in the second mating trial (mated).
+
+# Function for the jackknife:
+jackknife <- function(dataset) {
+  # Calculate variance of variable X
+  varX <- 0
+  for (i in 1:nrow(dataset)) {
+    varX <- varX + (dataset[i, 3] - mean(dataset[, 3])) ^ 2
+  }
+  # Calculate variance of variable Y
+  varY <- 0
+  for (i in 1:nrow(dataset)) {
+    varY <- varY + (dataset[i, 2] - mean(dataset[, 2])) ^ 2
+  }
+  # Calculate y, ratio of variances
+  y <- varY / varX
+  # Calculate all y-i
+  dataset$yi <- NA
+  for (i in 1:nrow(dataset)) {
+    varXi <- 0
+    varYi <- 0
+    dataseti <- dataset[-i, ]
+    for (j in 1:(nrow(dataset) - 1)) {
+      varXi <- varXi + (dataseti[j, 3] - mean(dataseti[, 3])) ^ 2
+      varYi <- varYi + (dataseti[j, 2] - mean(dataseti[, 2])) ^ 2
+    }
+    dataset[i, 4] <- varYi / varXi
+  }
+  # Logarithmic transformation of all y-i
+  dataset$Li <- nrow(dataset) * log(y) - (nrow(dataset) - 1) * log(dataset$yi)
+  # Calculate mean of the distribution (mean of all y-i)
+  meanL <- mean(dataset$Li)
+  # Calculate variance of distribution (variance of all y-1)
+  vLi <- 0
+  for (i in 1:nrow(dataset)) {
+    vLi <- vLi + (dataset[i, 5] - mean(dataset[, 5])) ^ 2
+  }
+  VarLi <- vLi / (nrow(dataset) * (nrow(dataset) - 1))
+  # Calculate Q the statistical value
+  Q <- meanL / sqrt(VarLi)
+  return(Q)
+}
+```
+
+## Total courtship duration:
+
+```{r}
+# Wilcoxon paired test:
+wilcox.test(subset1bis$total.courtship.duration,subset2bis$total.courtship.duration,paired=TRUE)
+```
+p-value > 0.05: no significant differences in mean between both groups.
+
+```{r message=FALSE}
+# Jackknife variance test:
+dataset <- subset1bis[,c("Female","total.courtship.duration")]
+colnames(dataset)[2] <- "virgin"
+dataset <- left_join(dataset,subset2bis[,c("Female","total.courtship.duration")])
+colnames(dataset)[3] <- "mated"
+```
+
+```{r}
+jackknife(dataset)
+```
+
+Statistical value of -1.61 gives a p-value of 0.053 > 0.05: no significant differences in variance between two groups.
+
+```{r}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=total.courtship.duration, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("darkolivegreen1","#FFBBFF")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Total courtship duration (s)") +
+  ggtitle("Total courtship duration depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+
+## Number of courtship segments:
+
+```{r warning=FALSE}
+# Wilcoxon paired test:
+wilcox.test(subset1bis$number.of.courtships,subset2bis$number.of.courtships,paired=TRUE)
+```
+p-value > 0.05: no significant differences in mean between two groups.
+
+```{r}
+# Jackknife variance test:
+dataset <- subset1bis[,c("Female","number.of.courtships")]
+colnames(dataset)[2] <- "virgin"
+dataset <- left_join(dataset,subset2bis[,c("Female","number.of.courtships")])
+colnames(dataset)[3] <- "mated"
+```
+```{r}
+jackknife(dataset)
+```
+
+Statistical value of -3.84 gives a p-value of 0.00006 <<< 0.05: significant difference of variance between two groups.
+
+```{r}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=number.of.courtships, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("darkolivegreen1","#FFBBFF")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Number of courtship segments") +
+  ggtitle("Number of courtship attempts depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+
+## Mean courtship segment length:
+
+```{r}
+# Wilcoxon paired test:
+wilcox.test(subset1bis$mean.courtship.length,subset2bis$mean.courtship.length,paired=TRUE)
+```
+p-value > 0.05: no significant differences in mean between two groups.
+
+```{r}
+# Jackknife variance test:
+dataset <- subset1bis[,c("Female","mean.courtship.length")]
+colnames(dataset)[2] <- "virgin"
+dataset <- left_join(dataset,subset2bis[,c("Female","mean.courtship.length")])
+colnames(dataset)[3] <- "mated"
+```
+```{r}
+jackknife(dataset)
+```
+
+Statistical value of -0.61 give a p-value of 0.27 > 0.05: no significant differences in variance between two groups.
+
+```{r}
+# Graphical representation:
+ggplot(data, aes(x=femalematedbefore, y=mean.courtship.length, fill=femalematedbefore)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1) +
+  scale_fill_manual(values=c("darkolivegreen1","#FFBBFF")) +
+  xlab("Female mating state") +
+  scale_x_discrete(labels = c("Virgin","Mated")) +
+  ylab("Mean length of courtship segments (s)") +
+  ggtitle("Mean length of courtship segments depending on female mating state") +
+  theme_minimal() +
+  theme(legend.position="none")
+```
+
+# As a trade-OFF between signals and behaviours that are used to increase male survival chances
+
+To assess wich response to courtship should be investigated between all parameters, correlation test were performed.
+
+Mixed model linear regression were performed between each quantitative parameter used to assess female aggressiveness and parameters used to assess male decisions in courtship and female mating state.
+Variance Inflation Factor was calculated to select pertinent explaining variables and AIC was calculated to select models. When performing mixed model linear regression, Female ID was used as a random effect and qualitative fixed effect were standardised to have the same scale.
+
+For qualitative parameters, distribution McNemar's chi square tests were performed with female mating state.
+
+## Correlation tests between parameters:
+
+```{r}
+data$Male.killed <- data$pre.copulatory.kill | data$post.copulatory.kill
+cor(data[,c("number.of.attacks","number.of.flees","Male.killed","latency.to.attack")],method = "spearman", use = "complete.obs")
+cor.test(data$latency.to.attack,data$number.of.attacks,method = "spearman")
+```
+Any of those parameters show an import correlation.
+
+## Male getting killed:
+
+```{r}
+# Creation of contingency table:
+Male.killed <- table(subset1$pre.copulatory.kill|subset1$post.copulatory.kill,subset2$pre.copulatory.kill|subset2$post.copulatory.kill,dnn=list("virgin","mated"))
+Male.killed
+
+# McNemar's chi square test:
+mcnemar.test(Male.killed)
+```
+p-value > 0.05: distribution is not significantly heterogeneous, males are not more often killed by virgin females than mated females
+
+## Standardise data
+
+```{r}
+# Standardise data:
+data$std.number.of.courtships <- scale(data$number.of.courtships,center=TRUE,scale=TRUE)
+data$std.total.courtship.duration <- scale(data$total.courtship.duration,center=TRUE,scale=TRUE)
+data$std.mean.courtship.length <- scale(data$mean.courtship.length,center=TRUE,scale=TRUE)
+```
+
+## Number of attacks:
+
+```{r}
+# Creation of model:
+mod.attk <- glmer(number.of.attacks ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data)
+summary(mod.attk)
+Anova(mod.attk,type='II')
+```
+
+```{r}
+# Obtain VIF:
+vif(mod.attk)
+# Create a better model:
+mod.attk2 <- glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data)
+# Obteain VIF:
+vif(mod.attk2)
+```
+
+```{r warning=FALSE}
+# Find best model based on AIC:
+
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + femalematedbefore*std.total.courtship.duration + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ femalematedbefore-std.total.courtship.duration + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.attacks ~ 1 + (1|Female),family = poisson,data=data))
+```
+
+So we want to keep the 6th model, with only the number of courtships.
+
+```{r}
+# Keep the best model
+mod.attk3 <- glmer(number.of.attacks ~ femalematedbefore:std.number.of.courtships + (1|Female),family = poisson,data=data)
+Anova(mod.attk3,type='II')
+summary(mod.attk3)
+```
+
+## Number of flees:
+
+```{r}
+# Creation of model:
+mod.flees <- glmer(number.of.flees ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.total.courtship.duration + femalematedbefore*std.mean.courtship.length + (1|Female),family = poisson,data=data)
+Anova(mod.flees,type='II')
+summary(mod.flees)
+```
+```{r}
+# Obtain VIF:
+vif(mod.flees)
+```
+
+```{r warning=FALSE}
+# Find best model based on AIC:
+AIC(glmer(number.of.flees ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.total.courtship.duration + femalematedbefore:std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ femalematedbefore:std.total.courtship.duration + femalematedbefore:std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.total.courtship.duration + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ femalematedbefore:std.mean.courtship.length + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ femalematedbefore:std.number.of.courtships + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ femalematedbefore:std.total.courtship.duration + (1|Female),family = poisson,data=data))
+AIC(glmer(number.of.flees ~ 1 + (1|Female),family = poisson,data=data))
+```
+We want to keep the 6th one
+
+```{r}
+mod.flees2 <- glmer(number.of.flees ~ femalematedbefore:std.number.of.courtships + (1|Female),family = poisson,data=data)
+summary(mod.flees2)
+```
+
+## Latency to attack:
+
+```{r}
+# Creation of model:
+mod.lat.attk <- glmer(latency.to.attack ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.total.courtship.duration + femalematedbefore:std.mean.courtship.length + (1|Female),family = gaussian,data=data)
+summary(mod.lat.attk)
+```
+
+```{r}
+# Obtain VIF:
+vif(mod.lat.attk)
+```
+
+So we want to remove the std.total.courtship.duration
+
+```{r message=FALSE}
+# Remove femalematedbefore:std.total.courtship.duration:
+mod.lat.attk2 <- lmer(latency.to.attack ~ femalematedbefore*std.number.of.courtships + femalematedbefore*std.mean.courtship.length + (1|Female),data=data)
+summary(mod.lat.attk2)
+Anova(mod.lat.attk2,type='II')
+```
+```{r}
+# Obtain VIF:
+vif(mod.lat.attk2)
+```
+```{r message=FALSE}
+# Find the best model based on AIC:
+AIC(lmer(latency.to.attack ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(latency.to.attack ~ femalematedbefore:std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(latency.to.attack ~ femalematedbefore:std.number.of.courtships + (1|Female),data=data))
+AIC(lmer(latency.to.attack ~ (1|Female),data=data))
+```
+So we want to keep the first model
+
+```{r}
+summary(mod.lat.attk2)
+```
+
+# and risk for sperm competition
+
+Same method as previous part was applied.
+
+## Copulation success of individuals:
+
+```{r}
+# Creation of contingency table:
+table(subset1$copulation,subset2$copulation,dnn = list("virgin","mated"))
+Copulation <- matrix(c(0, 11, 0, 4),nrow = 2,dimnames = list("1st Survey" = c("False", "True"),"2nd Survey" = c("False", "True")))
+Copulation
+
+# McNemar's chi square test:
+mcnemar.test(Copulation)
+```
+p-value < 0.05: distribution is significantly not homogeneous, mating trials with virgin females have a more important reproduction success.
+
+## Mean time of mounting
+
+```{r}
+# Creation of model:
+mod.mount <- lmer(mean.mount.length ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.total.courtship.duration + femalematedbefore:std.mean.courtship.length + (1|Female),data=data)
+summary(mod.mount)
+```
+```{r}
+# Obtain VIF:
+vif(mod.mount)
+```
+```{r}
+# Find the best model based on AIC:
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.total.courtship.duration + femalematedbefore:std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.total.courtship.duration + femalematedbefore:std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.number.of.courtships + femalematedbefore:std.total.courtship.duration + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.mean.courtship.length + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.number.of.courtships + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ femalematedbefore:std.total.courtship.duration + (1|Female),data=data))
+AIC(lmer(mean.mount.length ~ (1|Female),data=data))
+```
+We want to keep the first one
+
+```{r}
+summary(mod.mount)
+```
+
+### Number of attacks ~ Female Mating State & Number of flees ~ Female Mating State & Correlation
+
+```{r}
+# Number of attacks
+# Wilcoxon paired test:
+wilcox.test(subset1$number.of.attacks,subset2$number.of.attacks,paired=TRUE)
+# Jacknife:
+dataset <- subset1[,c("Female","number.of.attacks")]
+colnames(dataset)[2] <- "virgin"
+dataset <- left_join(dataset,subset2[,c("Female","number.of.attacks")])
+colnames(dataset)[3] <- "mated"
+jackknife(dataset) # P value of 0.03
+# Number of flees
+# Wilcoxon paired test:
+wilcox.test(subset1$number.of.flees,subset2$number.of.flees,paired=TRUE)
+# Jacknife:
+dataset <- subset1[,c("Female","number.of.flees")]
+colnames(dataset)[2] <- "virgin"
+dataset <- left_join(dataset,subset2[,c("Female","number.of.flees")])
+colnames(dataset)[3] <- "mated"
+jackknife(dataset) # P value of 0.0401
+# Correlation:
+cor.test(data$number.of.attacks,data$number.of.flees,method = "spearman") # Correlation 
+```
+
+### Male condition 
+
+```{r}
+df <- subset1
+colnames(df)[56] <- "Male.last.weight1"
+df.maleratio <- left_join(df[,c("Female","Male.last.weight1")],subset2[,c("number.of.attacks","number.of.courtships","number.of.flees","Female","Male.last.weight")])
+df.maleratio$maleratio <- df.maleratio$Male.last.weight1/df.maleratio$Male.last.weight
+```
+
+```{r}
+# Effect on number of courtships
+mod1 <- lm(number.of.courtships ~ maleratio ,data=df.maleratio)
+summary(mod1)
+Anova(mod1,type='II')
+# Effect on number of attacks
+mod2 <- lm(number.of.attacks ~ maleratio ,data=df.maleratio)
+summary(mod2)
+Anova(mod2,type='II')
+# Effects on number of flees
+mod3 <- lm(number.of.flees ~ maleratio ,data=df.maleratio)
+summary(mod3)
+Anova(mod3,type='II')
+```
+
+### Is male courtship influenced by female agressiveness or by another thing
+
+
+```{r}
+#### total.courtship.duration
+mod.tot <- lmer(total.courtship.duration ~ femalematedbefore*number.of.attacks + (1|Female),data=data)
+summary(mod.tot)
+Anova(mod.tot,type='II')
+#### number of courtships
+mod.nb <- glmer(number.of.courtships ~ femalematedbefore*number.of.attacks + (1|Female),family = poisson,data=data)
+summary(mod.nb)
+Anova(mod.nb,type='II')
+#### mean courtship duration
+mod.mean <- lmer(mean.courtship.length ~ femalematedbefore*number.of.attacks + (1|Female),data=data)
+summary(mod.mean)
+Anova(mod.mean,type='II')
+```
+
